@@ -1,49 +1,41 @@
 // server.js
-// Sistem tracking Pos Malaysia menggunakan AfterShip API
-
 const express = require('express');
 const axios = require('axios');
 
 const app = express();
-
-// Tentukan port dari environment atau guna 3000
 const PORT = process.env.PORT || 3000;
 
-// Izinkan CORS untuk frontend (Vercel / GitHub Pages)
+// CORS: Izinkan semua domain (untuk frontend)
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET');
   res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Cache-Control', 'no-store'); // 🔥 Elak 304
   next();
 });
 
 // Gunakan folder 'public' untuk frontend
 app.use(express.static('public'));
 
-// Route: /api/track/:trackingNumber
-// Contoh: /api/track/ENE083992448MY
+// Route: /api/track/XXXXX
 app.get('/api/track/:trackingNumber', async (req, res) => {
   const trackingNumber = req.params.trackingNumber.trim().toUpperCase();
 
-  // Validasi input
-  if (!trackingNumber) {
-    return res.status(400).json({ error: 'Tracking number diperlukan' });
+  // Validasi tracking number
+  if (!trackingNumber || trackingNumber.length < 4 || trackingNumber.length > 100) {
+    return res.status(400).json({ error: 'Tracking number tidak sah (4-100 aksara)' });
   }
 
-  if (trackingNumber.length < 4 || trackingNumber.length > 100) {
-    return res.status(400).json({ error: 'Tracking number mesti 4-100 aksara' });
-  }
-
-  // Dapatkan API key dari Railway (tidak dalam kod)
+  // Dapatkan API key dari Railway
   const AFTERSHIP_API_KEY = process.env.AFTERSHIP_API_KEY;
 
   if (!AFTERSHIP_API_KEY) {
-    console.error('❌ API key tidak disediakan di environment');
+    console.error('❌ AFTERSHIP_API_KEY tidak disediakan di environment');
     return res.status(500).json({ error: 'Internal Error: API key tidak disediakan' });
   }
 
   try {
-    // ✅ Langkah 1: Retrieve tracking dari AfterShip
+    // ✅ Retrieve tracking: GET /v4/trackings/malaysia-post/XXXXX
     const response = await axios.get(
       `https://api.aftership.com/v4/trackings/malaysia-post/${trackingNumber}`,
       {
@@ -51,7 +43,7 @@ app.get('/api/track/:trackingNumber', async (req, res) => {
           'aftership-api-key': AFTERSHIP_API_KEY,
           'Content-Type': 'application/json'
         },
-        timeout: 10000 // 10 saat
+        timeout: 10000
       }
     );
 
@@ -78,14 +70,13 @@ app.get('/api/track/:trackingNumber', async (req, res) => {
 
     return res.json(result);
   } catch (err) {
-    // Log error untuk debug
     console.error('🔴 AfterShip API Error:', {
       status: err.response?.status,
        err.response?.data,
       message: err.message
     });
 
-    // Handle error spesifik
+    // Handle error khusus
     if (err.response?.status === 401) {
       return res.status(500).json({ error: '🔐 API key tidak sah. Semak di Railway.' });
     }
@@ -115,14 +106,6 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Jalankan server
 app.listen(PORT, () => {
   console.log(`✅ Server berjalan di port ${PORT}`);
-  console.log(`🔗 Gunakan endpoint: /api/track/XXXXX`);
-  if (!process.env.AFTERSHIP_API_KEY) {
-    console.log('⚠️  AFTERSHIP_API_KEY belum diset — sila tambah di Railway Variables');
-  }
 });
-
-// Export untuk Railway
-module.exports = app;
