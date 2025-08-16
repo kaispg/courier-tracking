@@ -22,17 +22,14 @@ if (!AFTERSHIP_API_KEY) {
   console.warn('⚠️ AFTERSHIP_API_KEY tidak ditemui!');
 }
 
-// Helper: Buat tracking jika belum wujud
+// Helper: Create tracking jika belum wujud
 async function ensureTrackingCreated(trackingNumber) {
   try {
-    // Cuba retrieve dulu
     await axios.get(`https://api.aftership.com/v4/trackings/malaysia-post/${trackingNumber}`, {
       headers: { 'aftership-api-key': AFTERSHIP_API_KEY }
     });
-    // Jika berjaya, dah ada
   } catch (err) {
     if (err.response?.status === 404) {
-      // Jika tak wujud, create
       await axios.post('https://api.aftership.com/v4/trackings', {
         tracking: {
           tracking_number: trackingNumber,
@@ -49,6 +46,7 @@ async function ensureTrackingCreated(trackingNumber) {
   }
 }
 
+// Route: /api/track/:trackingNumber
 app.get('/api/track/:trackingNumber', async (req, res) => {
   const trackingNumber = req.params.trackingNumber.trim().toUpperCase();
 
@@ -61,29 +59,52 @@ app.get('/api/track/:trackingNumber', async (req, res) => {
   }
 
   try {
-    // Pastikan tracking dah wujud di AfterShip
+    // Pastikan tracking dah wujud
     await ensureTrackingCreated(trackingNumber);
 
     // Retrieve data
-    const response = await axios.get(
-      `https://api.aftership.com/v4/trackings/malaysia-post/${trackingNumber}`,
-      {
-        headers: {
-          'aftership-api-key': AFTERSHIP_API_KEY,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+    let response;
+    let retries = 0;
 
-    const data = response.data.data.tracking;
+    while (retries < 2) {
+      try {
+        response = await axios.get(
+          `https://api.aftership.com/v4/trackings/malaysia-post/${trackingNumber}`,
+          {
+            headers: {
+              'aftership-api-key': AFTERSHIP_API_KEY,
+              'Content-Type': 'application/json'
+            },
+            timeout: 10000
+          }
+        );
+
+        const data = response.data.data.tracking;
+
+        // Jika ada checkpoint, return segera
+        if (data.checkpoints && data.checkpoints.length > 0) {
+          break;
+        }
+
+        // Jika tiada checkpoint, tunggu 5 saat, cuba lagi
+        if (retries === 0) {
+          await new Promise(r => setTimeout(r, 5000));
+        }
+
+        retries++;
+      } catch (err) {
+        console.error('Error retrieving:', err.message);
+        throw err;
+      }
+    }
 
     const result = {
-      tracking_number: data.tracking_number,
+      tracking_number: response.data.data.tracking.tracking_number,
       courier: 'Pos Malaysia',
-      origin: data.origin?.country_iso3 || 'N/A',
-      destination: data.destination?.country_iso3 || 'N/A',
-      status: data.tag || 'Unknown',
-      events: (data.checkpoints || []).map(cp => ({
+      origin: response.data.data.tracking.origin?.country_iso3 || 'N/A',
+      destination: response.data.data.tracking.destination?.country_iso3 || 'N/A',
+      status: response.data.data.tracking.tag || 'Pending',
+      events: (response.data.data.tracking.checkpoints || []).map(cp => ({
         status: cp.tag,
         location: [
           cp.location || '',
