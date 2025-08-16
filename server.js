@@ -12,54 +12,43 @@ app.use((req, res, next) => {
   next();
 });
 
-// Static file hosting
 app.use(express.static('public'));
 app.use(express.json());
 
-// Dapatkan API key dari Railway
 const AFTERSHIP_API_KEY = process.env.AFTERSHIP_API_KEY;
 
 if (!AFTERSHIP_API_KEY) {
-  console.warn('⚠️ AFTERSHIP_API_KEY tidak ditemui! Sila tambah di Railway Variables');
+  console.warn('⚠️ AFTERSHIP_API_KEY tidak ditemui!');
 }
 
-/**
- * Route: /api/track/:trackingNumber
- * Contoh: /api/track/ENE083992448MY
- */
+// Route: /api/track/ENE083992448MY
 app.get('/api/track/:trackingNumber', async (req, res) => {
   const trackingNumber = req.params.trackingNumber.trim().toUpperCase();
 
-  // Validasi input
-  if (!trackingNumber || trackingNumber.length < 4 || trackingNumber.length > 100) {
-    return res.status(400).json({ error: 'Tracking number tidak sah (4-100 aksara)' });
+  if (!trackingNumber) {
+    return res.status(400).json({ error: 'Tracking number diperlukan' });
   }
 
   if (!AFTERSHIP_API_KEY) {
-    console.error('❌ AFTERSHIP_API_KEY tidak disediakan');
-    return res.status(500).json({ error: 'Internal Error: API key tidak disediakan' });
+    return res.status(500).json({ error: 'API key tidak disediakan' });
   }
 
   try {
-    console.log(`🔍 Mencari tracking: ${trackingNumber}`);
-
-    // ✅ Create Tracking (AfterShip API)
-    const response = await axios.post('https://api.aftership.com/v4/trackings', {
-      tracking: {
-        tracking_number: trackingNumber,
-        slug: 'malaysia-post' // ✅ Pos Malaysia
+    // ✅ GUNA GET: Retrieve tracking
+    const response = await axios.get(
+      `https://api.aftership.com/v4/trackings/malaysia-post/${trackingNumber}`,
+      {
+        headers: {
+          'aftership-api-key': AFTERSHIP_API_KEY,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
       }
-    }, {
-      headers: {
-        'aftership-api-key': AFTERSHIP_API_KEY,
-        'Content-Type': 'application/json'
-      },
-      timeout: 10000
-    });
+    );
 
     const data = response.data.data.tracking;
 
-    // Format respons untuk frontend
+    // Format untuk frontend
     const result = {
       tracking_number: data.tracking_number,
       courier: 'Pos Malaysia',
@@ -78,27 +67,22 @@ app.get('/api/track/:trackingNumber', async (req, res) => {
       })).reverse()
     };
 
-    console.log(`✅ Berjaya dapat data untuk ${trackingNumber}`);
     return res.json(result);
   } catch (err) {
-    console.error('🔴 Error lengkap:', {
-      message: err.message,
+    console.error('AfterShip Error:', {
       status: err.response?.status,
        err.response?.data,
-      url: err.config?.url
+      message: err.message
     });
 
-    // Handle error khusus
     if (err.response?.status === 401) {
       return res.status(500).json({ error: '🔐 API key tidak sah' });
     }
 
-    if (err.response?.status === 400) {
-      return res.json({ error: '🚫 Tracking number tidak sah atau tidak dijumpai' });
-    }
-
-    if (err.code === 'ECONNABORTED') {
-      return res.status(500).json({ error: '⏱️ Permintaan tamat masa' });
+    if (err.response?.status === 404) {
+      return res.json({ 
+        error: '📦 Tracking number tidak ditemui di AfterShip' 
+      });
     }
 
     return res.status(500).json({
@@ -106,11 +90,6 @@ app.get('/api/track/:trackingNumber', async (req, res) => {
       details: err.response?.data?.meta?.message || err.message
     });
   }
-});
-
-// Test route
-app.get('/', (req, res) => {
-  res.send('Backend berjalan! Gunakan /api/track/123');
 });
 
 app.listen(PORT, () => {
