@@ -3,77 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>📦 Pos Malaysia Tracking</title>
+  <title>📦 Multiple Carrier Tracking</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Inter', sans-serif;
-      background: #f8fafc;
-      color: #1e293b;
-      line-height: 1.6;
-      padding: 20px;
-    }
-    .container {
-      max-width: 900px;
-      margin: 0 auto;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-      overflow: hidden;
-    }
-    header {
-      background: #2563eb;
-      color: white;
-      padding: 30px;
-      text-align: center;
-    }
+    body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.6; padding: 20px; }
+    .container { max-width: 900px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }
+    header { background: #2563eb; color: white; padding: 30px; text-align: center; }
     header h1 { font-size: 28px; font-weight: 700; }
     header p { font-size: 16px; opacity: 0.9; }
-    .search-section {
-      padding: 30px;
-      background: #f1f5f9;
-      text-align: center;
-    }
-    input, button {
-      padding: 14px;
-      font-size: 16px;
-    }
-    input {
-      width: 70%;
-      max-width: 400px;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      outline: none;
-      margin-right: 10px;
-    }
+    .search-section { padding: 30px; background: #f1f5f9; text-align: center; }
+    input, button { padding: 14px; font-size: 16px; }
+    input { width: 70%; max-width: 400px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; }
     input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.2); }
-    button {
-      background: #1d4ed8;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 500;
-    }
+    button { background: #1d4ed8; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; }
     button:hover { background: #1e40af; }
-    .result {
-      padding: 30px;
-    }
-    .info-box {
-      background: #dbeafe;
-      color: #1e3a8a;
-      padding: 16px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-      font-weight: 500;
-    }
-    .event-item {
-      border-left: 4px solid #2563eb;
-      margin: 10px 0;
-      padding: 12px 16px;
-      background: #f8fafc;
-    }
+    .result { padding: 30px; }
+    .info-box { background: #dbeafe; color: #1e3a8a; padding: 16px; border-radius: 8px; margin-bottom: 20px; font-weight: 500; }
+    .event-item { border-left: 4px solid #2563eb; margin: 10px 0; padding: 12px 16px; background: #f8fafc; }
     .event-status { font-weight: 600; }
     .event-location { color: #64748b; font-size: 14px; }
     .event-date { color: #94a3b8; font-size: 13px; margin-top: 4px; }
@@ -84,12 +31,12 @@
 <body>
   <div class="container">
     <header>
-      <h1>📦 Pos Malaysia Tracking</h1>
-      <p>Track ENE, EC, RE, RR, LX, dll</p>
+      <h1>📦 Multiple Carrier Tracking</h1>
+      <p>DHL, FedEx, UPS, Pos Malaysia, dll</p>
     </header>
 
     <div class="search-section">
-      <input type="text" id="trackingInput" placeholder="Masukkan tracking number (contoh: ENE083992448MY)" />
+      <input type="text" id="trackingInput" placeholder="Masukkan tracking number" />
       <button onclick="track()">Track</button>
     </div>
 
@@ -103,7 +50,6 @@
   </div>
 
   <script>
-    // 🔥 GANTI DENGAN URL BACKEND ANDA
     const BACKEND_URL = 'https://courier-tracking-production.up.railway.app';
 
     async function track() {
@@ -129,22 +75,24 @@
 
         let html = `
           <div class="info-box">
-            <strong>📦 Tracking Number:</strong> ${data.tracking_number}<br/>
-            <strong>🚚 Courier:</strong> ${data.courier}<br/>
-            <strong>📍 Asal:</strong> ${data.origin} | 
-            <strong>Tujuan:</strong> ${data.destination}<br/>
-            <strong>📊 Status Terkini:</strong> ${data.status}
+            <div><strong>📦 Tracking Number:</strong> ${data.tracking_number}</div>
+            <div><strong>🚚 Courier:</strong> ${data.courier} (${data.slug})</div>
+            <div><strong>📍 Asal:</strong> ${data.origin} | <strong>Tujuan:</strong> ${data.destination}</div>
+            <div><strong>📊 Status:</strong> ${data.status}</div>
+            <div><strong>📦 Order ID:</strong> ${data.order_id}</div>
+            <div><strong>📌 Title:</strong> ${data.title}</div>
+            <div><strong>📍 Checkpoints:</strong> ${data.checkpoints_count}</div>
           </div>
           <h3>🚚 Sejarah Penghantaran</h3>
         `;
 
         if (data.events && data.events.length > 0) {
-          data.events.forEach(event => {
+          data.events.forEach(e => {
             html += `
               <div class="event-item">
-                <div class="event-status">${event.status}</div>
-                <div class="event-location">${event.location}</div>
-                <div class="event-date">${event.datetime}</div>
+                <div class="event-status">${e.status}</div>
+                <div class="event-location">${e.location}</div>
+                <div class="event-date">${e.datetime} (${e.timezone})</div>
               </div>
             `;
           });
@@ -159,4 +107,4 @@
     }
   </script>
 </body>
-  </html>
+</html>
