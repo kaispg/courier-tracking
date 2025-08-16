@@ -1,9 +1,3 @@
-// server.js
-// ✅ Tiada fs, tiada csv-parser, tiada fail luaran
-// ✅ Semua courier map dalam kod
-// ✅ Auto-detect dari tracking number
-// ✅ Berfungsi 100%
-
 const express = require('express');
 const axios = require('axios');
 
@@ -27,47 +21,6 @@ const AFTERSHIP_API_KEY = process.env.AFTERSHIP_API_KEY;
 if (!AFTERSHIP_API_KEY) {
   console.warn('⚠️ AFTERSHIP_API_KEY tidak ditemui!');
 }
-
-// ✅ Mapping courier slug → nama penuh (ambil dari couriers.csv & carriers.csv)
-const COURIER_NAMES = {
-  'malaysia-post': 'Malaysia Post EMS / Pos Laju',
-  'dhl': 'DHL Express',
-  'fedex': 'FedEx',
-  'ups': 'UPS',
-  'usps': 'USPS',
-  'poslaju': 'Pos Malaysia',
-  'nimbuspost': 'NimbusPost',
-  'fastbox': 'Fastboxx',
-  'xmszm': 'XMSZM',
-  'jd-express': '京东物流 (JD Express)',
-  'pandago-api': 'Pandago',
-  'ontrac-api': 'OnTrac',
-  'aramex': 'Aramex',
-  'singapore-post': 'Singapore Post',
-  'australia-post': 'Australia Post',
-  'canada-post': 'Canada Post',
-  'dhl-ecommerce': 'DHL eCommerce',
-  'dhl-germany': 'DHL Germany',
-  'dhl-poland': 'DHL Poland',
-  'dhl-russia': 'DHL Russia',
-  'dhl-taiwan': 'DHL Taiwan',
-  'dhl-uk': 'DHL UK',
-  'fedex-uk': 'FedEx UK',
-  'ups-canada': 'UPS Canada',
-  'ups-uk': 'UPS UK',
-  'usps-international': 'USPS International',
-  'yodel': 'Yodel',
-  'evri': 'Evri (Hermes UK)',
-  'tnt': 'TNT',
-  'aramex': 'Aramex',
-  'ninja-van': 'Ninja Van',
-  'japan-post': 'Japan Post',
-  'korea-post': 'Korea Post',
-  'china-post': 'China Post',
-  'thailand-post': 'Thailand Post',
-  'india-post': 'India Post',
-  // tambah lebih jika perlu
-};
 
 // Auto-detect courier dari tracking number
 function detectCourier(trackingNumber) {
@@ -95,13 +48,7 @@ function detectCourier(trackingNumber) {
   // USPS
   if (/^92[\d]{9}US$/.test(trackingNumber)) return 'usps';
 
-  // JD Express
-  if (/^JD[\d]{12}$/.test(trackingNumber)) return 'jd-express';
-
-  // Pandago
-  if (/^PANDAGO[\d]{9}$/.test(trackingNumber)) return 'pandago-api';
-
-  // Default: biar AfterShip detect
+  // Default: cuba hantar tanpa slug
   return null;
 }
 
@@ -122,45 +69,31 @@ app.get('/api/track/:trackingNumber', async (req, res) => {
   try {
     let response;
 
-    if (detectedSlug) {
-      // Retrieve tracking dengan slug
-      response = await axios.get(
-        `https://api.aftership.com/v4/trackings/${detectedSlug}/${trackingNumber}`,
-        {
-          headers: { 'aftership-api-key': AFTERSHIP_API_KEY }
-        }
-      );
-    } else {
-      // Jika tidak detect, cuba create tracking dulu
-      await axios.post('https://api.aftership.com/v4/trackings', {
-        tracking: { tracking_number: trackingNumber }
-      }, {
-        headers: {
-          'aftership-api-key': AFTERSHIP_API_KEY,
-          'Content-Type': 'application/json'
-        }
-      });
+    // Create tracking jika belum wujud
+    await axios.post('https://api.aftership.com/v4/trackings', {
+      tracking: { tracking_number: trackingNumber }
+    }, {
+      headers: {
+        'aftership-api-key': AFTERSHIP_API_KEY,
+        'Content-Type': 'application/json'
+      }
+    });
 
-      // Lepas create, retrieve
-      response = await axios.get(
-        `https://api.aftership.com/v4/trackings/${trackingNumber}`,
-        {
-          headers: { 'aftership-api-key': AFTERSHIP_API_KEY }
-        }
-      );
-    }
+    // Retrieve data
+    response = await axios.get(
+      `https://api.aftership.com/v4/trackings/${trackingNumber}`,
+      {
+        headers: { 'aftership-api-key': AFTERSHIP_API_KEY }
+      }
+    );
 
     const data = response.data.data.tracking;
 
-    // Dapatkan nama penuh courier
-    const courierName = COURIER_NAMES[data.slug] || data.slug;
-
-    // Format respons
     const result = {
       tracking_number: data.tracking_number,
-      courier_name: courierName,
       courier_slug: data.slug,
-      status: data.tag || 'Unknown',
+      courier_name: 'Pos Malaysia',
+      status: data.tag || 'Pending',
       title: data.title || 'N/A',
       checkpoints_count: data.checkpoints?.length || 0,
       events: (data.checkpoints || []).map(cp => ({
@@ -171,7 +104,8 @@ app.get('/api/track/:trackingNumber', async (req, res) => {
           cp.state || '',
           cp.country_iso3 || ''
         ].filter(Boolean).join(', '),
-        datetime: new Date(cp.checkpoint_time).toLocaleString()
+        datetime: new Date(cp.checkpoint_time).toLocaleString(),
+        timezone: cp.time_zone || 'N/A'
       })).reverse()
     };
 
@@ -195,8 +129,8 @@ app.get('/api/track/:trackingNumber', async (req, res) => {
 app.get('/', (req, res) => {
   res.send(`
     <h2>📦 Multiple Carrier Tracking</h2>
-    <p>✅ Backend berjalan! Gunakan: <code>/api/track/123</code></p>
-    <p>Auto-detect courier dari tracking number</p>
+    <p>Backend berjalan! Gunakan: <code>/api/track/123</code></p>
+    <p>Support: DHL, FedEx, UPS, Pos Malaysia, dll</p>
   `);
 });
 
