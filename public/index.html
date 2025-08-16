@@ -3,62 +3,158 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>📦 Courier Tracking</title>
+  <title>📦 Pos Malaysia Tracking</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    body { font-family: Arial, sans-serif; margin: 40px; }
-    .container { max-width: 800px; margin: 0 auto; }
-    input, button { padding: 12px; font-size: 16px; }
-    button { background: #0077cc; color: white; border: none; }
-    .result { margin-top: 20px; }
-    .event { border-left: 3px solid #0077cc; padding-left: 10px; margin: 10px 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      line-height: 1.6;
+      padding: 20px;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    header {
+      background: #2563eb;
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+    header h1 { font-size: 28px; font-weight: 700; }
+    header p { font-size: 16px; opacity: 0.9; }
+    .search-section {
+      padding: 30px;
+      background: #f1f5f9;
+      text-align: center;
+    }
+    input, button {
+      padding: 14px;
+      font-size: 16px;
+    }
+    input {
+      width: 70%;
+      max-width: 400px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      outline: none;
+      margin-right: 10px;
+    }
+    input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.2); }
+    button {
+      background: #1d4ed8;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    button:hover { background: #1e40af; }
+    .result {
+      padding: 30px;
+    }
+    .info-box {
+      background: #dbeafe;
+      color: #1e3a8a;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-weight: 500;
+    }
+    .event-item {
+      border-left: 4px solid #2563eb;
+      margin: 10px 0;
+      padding: 12px 16px;
+      background: #f8fafc;
+    }
+    .event-status { font-weight: 600; }
+    .event-location { color: #64748b; font-size: 14px; }
+    .event-date { color: #94a3b8; font-size: 13px; margin-top: 4px; }
+    .error { padding: 20px; background: #fee2e2; color: #991b1b; text-align: center; border-radius: 8px; font-weight: 500; }
+    .footer { text-align: center; padding: 20px; color: #64748b; font-size: 14px; background: #f8fafc; border-top: 1px solid #e2e8f0; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>📦 Courier Tracking</h1>
-    <input type="text" id="awbInput" placeholder="Masukkan tracking number" />
-    <button onclick="track()">Track</button>
-    <div id="result" class="result"></div>
+    <header>
+      <h1>📦 Pos Malaysia Tracking</h1>
+      <p>Track ENE, EC, RE, RR, LX, dll</p>
+    </header>
+
+    <div class="search-section">
+      <input type="text" id="trackingInput" placeholder="Masukkan tracking number (contoh: ENE083992448MY)" />
+      <button onclick="track()">Track</button>
+    </div>
+
+    <div id="result" class="result">
+      <!-- Hasil tracking muncul di sini -->
+    </div>
+
+    <div class="footer">
+      © 2025 Courier Tracking System | Data dari AfterShip
+    </div>
   </div>
 
   <script>
+    // 🔥 GANTI DENGAN URL BACKEND ANDA
     const BACKEND_URL = 'https://courier-tracking-production.up.railway.app';
 
     async function track() {
-      const awb = document.getElementById('awbInput').value.trim();
+      const input = document.getElementById('trackingInput');
       const resultDiv = document.getElementById('result');
+      const trackingNumber = input.value.trim();
 
-      if (!awb) {
-        resultDiv.innerHTML = 'Sila masukkan tracking number.';
+      if (!trackingNumber) {
+        resultDiv.innerHTML = '<div class="error">Sila masukkan tracking number.</div>';
         return;
       }
 
-      resultDiv.innerHTML = 'Sedang mencari...';
+      resultDiv.innerHTML = '<div class="info-box">🔍 Sedang mencari...</div>';
 
       try {
-        const response = await fetch(`${BACKEND_URL}/api/track/${awb}`);
+        const response = await fetch(`${BACKEND_URL}/api/track/${encodeURIComponent(trackingNumber)}`);
         const data = await response.json();
 
         if (data.error) {
-          resultDiv.innerHTML = `<p style="color:red">${data.error}</p>`;
+          resultDiv.innerHTML = `<div class="error">❌ ${data.error}</div>`;
           return;
         }
 
         let html = `
-          <h2>📦 Tracking Result</h2>
-          <p><strong>AWB:</strong> ${data.tracking_number}</p>
-          <p><strong>Courier:</strong> ${data.courier_name}</p>
-          <p><strong>Status:</strong> ${data.status}</p>
-          <h3>History:</h3>
+          <div class="info-box">
+            <strong>📦 Tracking Number:</strong> ${data.tracking_number}<br/>
+            <strong>🚚 Courier:</strong> ${data.courier}<br/>
+            <strong>📍 Asal:</strong> ${data.origin} | 
+            <strong>Tujuan:</strong> ${data.destination}<br/>
+            <strong>📊 Status Terkini:</strong> ${data.status}
+          </div>
+          <h3>🚚 Sejarah Penghantaran</h3>
         `;
 
-        data.events.forEach(e => {
-          html += `<div class="event"><strong>${e.status}</strong><br/>${e.location} - ${e.datetime}</div>`;
-        });
+        if (data.events && data.events.length > 0) {
+          data.events.forEach(event => {
+            html += `
+              <div class="event-item">
+                <div class="event-status">${event.status}</div>
+                <div class="event-location">${event.location}</div>
+                <div class="event-date">${event.datetime}</div>
+              </div>
+            `;
+          });
+        } else {
+          html += '<div class="error">Tiada sejarah penghantaran.</div>';
+        }
 
         resultDiv.innerHTML = html;
       } catch (err) {
-        resultDiv.innerHTML = `<p style="color:red">Gagal: ${err.message}</p>`;
+        resultDiv.innerHTML = `<div class="error">📡 Gagal sambung: ${err.message}</div>`;
       }
     }
   </script>
