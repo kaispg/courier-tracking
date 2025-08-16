@@ -7,23 +7,41 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static('public'));
 app.use(express.json());
 
+// CORS
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  next();
+});
+
 const AFTERSHIP_API_KEY = process.env.AFTERSHIP_API_KEY;
 
-// Courier detection dari tracking number
+// Detect courier dari tracking number
 function detectCourier(trackingNumber) {
   trackingNumber = trackingNumber.toUpperCase().trim();
 
-  if (/^[\d]{12}$/.test(trackingNumber)) return 'ups';
-  if (/^[\d]{18}$/.test(trackingNumber)) return 'usps';
-  if (/^1Z[\dA-Z]{16}$/.test(trackingNumber)) return 'ups';
-  if (/^92[\d]{9}US$/.test(trackingNumber)) return 'usps';
+  // Pos Malaysia
   if (/^EC[\d]{9}MY$/.test(trackingNumber)) return 'pos-malaysia';
-  if (/^RR[\d]{9}CN$/.test(trackingNumber)) return 'china-post';
-  if (/^LJ[\d]{9}JP$/.test(trackingNumber)) return 'japan-post';
-  if (/^ENA?[\d]{9}HK$|^ENA?[\d]{9}MO$|^ENA?[\d]{9}SG$|^ENA?[\d]{9}MY$/.test(trackingNumber)) return 'dhl';
+  if (/^RE[\d]{9}MY$/.test(trackingNumber)) return 'pos-malaysia';
+  if (/^RR[\d]{9}MY$/.test(trackingNumber)) return 'pos-malaysia';
+  if (/^LX[\d]{9}MY$/.test(trackingNumber)) return 'pos-malaysia';
+  if (/^ENE[\d]{9}MY$/.test(trackingNumber)) return 'pos-malaysia'; // ✅ ENE083992448MY
+
+  // DHL
   if (/^JJD[\d]{11}$/.test(trackingNumber)) return 'dhl';
-  if (/^[\d]{10,11}$/.test(trackingNumber)) return 'fedex';
-  if (/^[\d]{8,10}$/.test(trackingNumber)) return 'aramex';
+  if (/^ENA?[\d]{9}(HK|MO|SG|MY)$/.test(trackingNumber)) return 'dhl';
+
+  // UPS
+  if (/^1Z[\dA-Z]{16}$/.test(trackingNumber)) return 'ups';
+  if (/^[\d]{12}$/.test(trackingNumber)) return 'ups';
+
+  // FedEx
+  if (/^[\d]{12}$/.test(trackingNumber)) return 'fedex'; // boleh clash, guna last
+
+  // USPS
+  if (/^92[\d]{9}US$/.test(trackingNumber)) return 'usps';
+
   return null;
 }
 
@@ -86,5 +104,4 @@ app.get('/api/track/:tracking', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`✅ Server berjalan di port ${PORT}`);
-  console.log(`🔗 /api/track/123456789`);
 });
