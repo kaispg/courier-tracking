@@ -34,8 +34,8 @@ function loadCouriers() {
     fs.createReadStream('couriers.csv')
       .pipe(csv())
       .on('data', (row) => {
-        const slug = row['0']; // courier slug (cth: dhl, fedex)
-        const name = row['1']; // nama courier
+        const slug = row['Courier Slug'];
+        const name = row['Courier Name'];
         if (slug && name) {
           courierMap.set(slug, name);
         }
@@ -78,7 +78,7 @@ function detectCourier(trackingNumber) {
   return null;
 }
 
-// Route: /api/track/XXXXX
+// Route: /api/track/:trackingNumber
 app.get('/api/track/:trackingNumber', async (req, res) => {
   const trackingNumber = req.params.trackingNumber.trim();
 
@@ -128,12 +128,9 @@ app.get('/api/track/:trackingNumber', async (req, res) => {
     // Format respons
     const result = {
       tracking_number: data.tracking_number,
-      courier: courierMap.get(data.slug) || data.slug || 'Unknown',
-      slug: data.slug,
-      origin: data.origin?.country_iso3 || 'N/A',
-      destination: data.destination?.country_iso3 || 'N/A',
+      courier_slug: data.slug,
+      courier_name: courierMap.get(data.slug) || data.slug,
       status: data.tag || 'Unknown',
-      order_id: data.order_id || 'N/A',
       title: data.title || 'N/A',
       checkpoints_count: data.checkpoints?.length || 0,
       events: (data.checkpoints || []).map(cp => ({
