@@ -15,7 +15,6 @@ app.use((req, res, next) => {
 app.use(express.static('public'));
 app.use(express.json());
 
-// Dapatkan API key dari Railway
 const TRACKMAGE_API_KEY = process.env.TRACKMAGE_API_KEY;
 
 if (!TRACKMAGE_API_KEY) {
@@ -34,7 +33,8 @@ app.get('/api/track/:tracking', async (req, res) => {
   }
 
   try {
-    const response = await axios.get('https://api.trackmage.com/v1/track', {
+    // ✅ URL BETUL: /v1/shipments
+    const response = await axios.get('https://api.trackmage.com/v1/shipments', {
       params: { trackingNumber },
       headers: {
         'x-api-key': TRACKMAGE_API_KEY,
