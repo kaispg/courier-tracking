@@ -1,186 +1,109 @@
-// server.js
-const express = require('express');
-const axios = require('axios');
-const fs = require('fs');
-const csv = require('csv-parser');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>📦 Courier Tracking</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.6; padding: 20px; }
+    .container { max-width: 900px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }
+    header { background: #2563eb; color: white; padding: 30px; text-align: center; }
+    header h1 { font-size: 28px; font-weight: 700; }
+    header p { font-size: 16px; opacity: 0.9; }
+    .search-section { padding: 30px; background: #f1f5f9; text-align: center; }
+    input, button { padding: 14px; font-size: 16px; }
+    input { width: 70%; max-width: 400px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; }
+    input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.2); }
+    button { background: #1d4ed8; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; }
+    button:hover { background: #1e40af; }
+    .result { padding: 30px; }
+    .info-box { background: #dbeafe; color: #1e3a8a; padding: 16px; border-radius: 8px; margin-bottom: 20px; font-weight: 500; }
+    .event-item { border-left: 4px solid #2563eb; margin: 10px 0; padding: 12px 16px; background: #f8fafc; }
+    .event-status { font-weight: 600; }
+    .event-location { color: #64748b; font-size: 14px; }
+    .event-date { color: #94a3b8; font-size: 13px; margin-top: 4px; }
+    .error { padding: 20px; background: #fee2e2; color: #991b1b; text-align: center; border-radius: 8px; font-weight: 500; }
+    .footer { text-align: center; padding: 20px; color: #64748b; font-size: 14px; background: #f8fafc; border-top: 1px solid #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📦 Courier Tracking</h1>
+      <p>Auto-detect courier dari tracking number</p>
+    </header>
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+    <div class="search-section">
+      <input type="text" id="trackingInput" placeholder="Masukkan tracking number" />
+      <button onclick="track()">Track</button>
+    </div>
 
-// CORS
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
-  res.header('Cache-Control', 'no-store');
-  next();
-});
+    <div id="result" class="result">
+      <!-- Hasil tracking muncul di sini -->
+    </div>
 
-app.use(express.static('public'));
-app.use(express.json());
+    <div class="footer">
+      © 2025 Courier Tracking System | Data dari AfterShip
+    </div>
+  </div>
 
-const AFTERSHIP_API_KEY = process.env.AFTERSHIP_API_KEY;
+  <script>
+    // Ganti dengan URL backend anda
+    const BACKEND_URL = 'https://courier-tracking-production.up.railway.app';
 
-if (!AFTERSHIP_API_KEY) {
-  console.warn('⚠️ AFTERSHIP_API_KEY tidak ditemui!');
-}
+    async function track() {
+      const input = document.getElementById('trackingInput');
+      const resultDiv = document.getElementById('result');
+      const trackingNumber = input.value.trim();
 
-// Simpan mapping courier dari CSV
-let courierMap = new Map();
+      if (!trackingNumber) {
+        resultDiv.innerHTML = '<div class="error">Sila masukkan tracking number.</div>';
+        return;
+      }
 
-// Baca couriers.csv untuk auto-detect
-function loadCouriers() {
-  return new Promise((resolve, reject) => {
-    fs.createReadStream('couriers.csv')
-      .pipe(csv())
-      .on('data', (row) => {
-        const slug = row['Courier Slug'];
-        const name = row['Courier Name'];
-        if (slug && name) {
-          courierMap.set(slug, name);
+      resultDiv.innerHTML = '<div class="info-box">🔍 Sedang mencari...</div>';
+
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/track/${encodeURIComponent(trackingNumber)}`);
+        const data = await response.json();
+
+        if (data.error) {
+          resultDiv.innerHTML = `<div class="error">❌ ${data.error}</div>`;
+          return;
         }
-      })
-      .on('end', () => {
-        console.log(`✅ ${courierMap.size} courier dimuatkan`);
-        resolve();
-      })
-      .on('error', (err) => reject(err));
-  });
-}
 
-// Auto-detect courier dari tracking number
-function detectCourier(trackingNumber) {
-  trackingNumber = trackingNumber.toUpperCase().trim();
+        let html = `
+          <div class="info-box">
+            <div><strong>📦 Tracking Number:</strong> ${data.tracking_number}</div>
+            <div><strong>🚚 Courier:</strong> ${data.courier_name}</div>
+            <div><strong>📊 Status:</strong> ${data.status}</div>
+            <div><strong>📦 Title:</strong> ${data.title}</div>
+            <div><strong>📍 Checkpoints:</strong> ${data.checkpoints_count}</div>
+          </div>
+          <h3>🚚 Sejarah Penghantaran</h3>
+        `;
 
-  // Pos Malaysia
-  if (/^EC[\d]{9}MY$/.test(trackingNumber)) return 'malaysia-post';
-  if (/^RE[\d]{9}MY$/.test(trackingNumber)) return 'malaysia-post';
-  if (/^RR[\d]{9}MY$/.test(trackingNumber)) return 'malaysia-post';
-  if (/^LX[\d]{9}MY$/.test(trackingNumber)) return 'malaysia-post';
-  if (/^ENE[\d]{9}MY$/.test(trackingNumber)) return 'malaysia-post';
-
-  // DHL
-  if (/^JJD[\d]{11}$/.test(trackingNumber)) return 'dhl';
-  if (/^ENA?[\d]{9}(HK|MO|SG|MY)$/.test(trackingNumber)) return 'dhl';
-
-  // FedEx
-  if (/^[\d]{12}$/.test(trackingNumber)) return 'fedex';
-  if (/^6129[\d]{8}$/.test(trackingNumber)) return 'fedex';
-
-  // UPS
-  if (/^1Z[\dA-Z]{16}$/.test(trackingNumber)) return 'ups';
-  if (/^[\d]{12}$/.test(trackingNumber)) return 'ups';
-
-  // USPS
-  if (/^92[\d]{9}US$/.test(trackingNumber)) return 'usps';
-
-  // Default: cuba hantar tanpa slug
-  return null;
-}
-
-// Route: /api/track/:trackingNumber
-app.get('/api/track/:trackingNumber', async (req, res) => {
-  const trackingNumber = req.params.trackingNumber.trim();
-
-  if (!trackingNumber) {
-    return res.status(400).json({ error: 'Tracking number diperlukan' });
-  }
-
-  if (!AFTERSHIP_API_KEY) {
-    return res.status(500).json({ error: 'API key tidak disediakan' });
-  }
-
-  const detectedSlug = detectCourier(trackingNumber);
-
-  try {
-    let response;
-
-    if (detectedSlug) {
-      // Retrieve tracking dengan slug
-      response = await axios.get(
-        `https://api.aftership.com/v4/trackings/${detectedSlug}/${trackingNumber}`,
-        {
-          headers: { 'aftership-api-key': AFTERSHIP_API_KEY }
+        if (data.events && data.events.length > 0) {
+          data.events.forEach(e => {
+            html += `
+              <div class="event-item">
+                <div class="event-status">${e.status}</div>
+                <div class="event-location">${e.location}</div>
+                <div class="event-date">${e.datetime}</div>
+              </div>
+            `;
+          });
+        } else {
+          html += '<div class="error">Tiada sejarah penghantaran.</div>';
         }
-      );
-    } else {
-      // Jika tidak detect, cuba create tracking dulu
-      await axios.post('https://api.aftership.com/v4/trackings', {
-        tracking: { tracking_number: trackingNumber }
-      }, {
-        headers: {
-          'aftership-api-key': AFTERSHIP_API_KEY,
-          'Content-Type': 'application/json'
-        }
-      });
 
-      // Lepas create, retrieve
-      response = await axios.get(
-        `https://api.aftership.com/v4/trackings/${trackingNumber}`,
-        {
-          headers: { 'aftership-api-key': AFTERSHIP_API_KEY }
-        }
-      );
+        resultDiv.innerHTML = html;
+      } catch (err) {
+        resultDiv.innerHTML = `<div class="error">📡 Gagal sambung: ${err.message}</div>`;
+      }
     }
-
-    const data = response.data.data.tracking;
-
-    // Format respons
-    const result = {
-      tracking_number: data.tracking_number,
-      courier_slug: data.slug,
-      courier_name: courierMap.get(data.slug) || data.slug,
-      status: data.tag || 'Unknown',
-      title: data.title || 'N/A',
-      checkpoints_count: data.checkpoints?.length || 0,
-      events: (data.checkpoints || []).map(cp => ({
-        status: cp.tag,
-        location: [
-          cp.location || '',
-          cp.city || '',
-          cp.state || '',
-          cp.country_iso3 || ''
-        ].filter(Boolean).join(', '),
-        datetime: new Date(cp.checkpoint_time).toLocaleString(),
-        timezone: cp.time_zone || 'N/A'
-      })).reverse()
-    };
-
-    return res.json(result);
-  } catch (err) {
-    console.error('AfterShip Error:', err.response?.data || err.message);
-    if (err.response?.status === 401) {
-      return res.status(500).json({ error: '🔐 API key tidak sah' });
-    }
-    if (err.response?.status === 404) {
-      return res.json({ error: '📦 Tracking number tidak ditemui di AfterShip' });
-    }
-    return res.status(500).json({
-      error: 'Gagal dapat data',
-      details: err.response?.data?.meta?.message || err.message
-    });
-  }
-});
-
-// Test route
-app.get('/', (req, res) => {
-  res.send(`
-    <h2>📦 Multiple Carrier Tracking</h2>
-    <p>Backend berjalan! Gunakan: <code>/api/track/123</code></p>
-    <p>Support: DHL, FedEx, UPS, Pos Malaysia, dll</p>
-  `);
-});
-
-// Load couriers sebelum start
-loadCouriers()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`✅ Server berjalan di port ${PORT}`);
-    });
-  })
-  .catch(err => {
-    console.error('❌ Gagal muat couriers:', err.message);
-    app.listen(PORT, () => {
-      console.log(`⚠️ Server berjalan, tapi courier tidak dimuat`);
-    });
-  });
+  </script>
+</body>
+</html>
