@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>✈️ Cargo Tracker</title>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; margin: 40px; line-height: 1.6; }
+    .container { max-width: 900px; margin: 0 auto; }
+    input { padding: 12px; width: 60%; font-size: 16px; }
+    button { padding: 12px; background: #2563eb; color: white; border: none; font-size: 16px; cursor: pointer; }
+    .result { margin-top: 30px; }
+    .event { border-left: 4px solid #2563eb; padding: 10px 15px; margin: 10px 0; background: #f8fafc; }
+    .error { color: red; font-weight: bold; }
+    .info { background: #e0f2fe; padding: 15px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📦 Flight Cargo Tracker</h1>
+    <p>Track AWB untuk Saudi Airlines, Emirates, Qatar, dll. Contoh: <strong>165-12345678</strong></p>
+    
+    <input type="text" id="awbInput" placeholder="Masukkan AWB number" />
+    <button onclick="track()">Track</button>
+
+    <div id="result" class="result"></div>
+  </div>
+
+  <script>
+    async function track() {
+      const awb = document.getElementById('awbInput').value.trim();
+      const resultDiv = document.getElementById('result');
+
+      if (!awb) {
+        resultDiv.innerHTML = '<p class="error">Sila masukkan AWB number.</p>';
+        return;
+      }
+
+      resultDiv.innerHTML = '<p>🔍 Sedang mencari...</p>';
+
+      // 🔥 GANTI BARIS INI DENGAN URL BACKEND ANDA DARI RAILWAY
+      const backendUrl = 'https://cargo-tracker-production.up.railway.app';
+      const response = await fetch(`${backendUrl}/api/track/${awb}`);
+      const data = await response.json();
+
+      if (data.error) {
+        resultDiv.innerHTML = `<p class="error">❌ ${data.error}</p>`;
+        return;
+      }
+
+      let html = `
+        <div class="info">
+          <h2>📦 Tracking Result</h2>
+          <p><strong>AWB:</strong> ${data.awb}</p>
+          <p><strong>Origin:</strong> ${data.origin}</p>
+          <p><strong>Destination:</strong> ${data.destination}</p>
+          <p><strong>Status:</strong> ${data.status}</p>
+          <p><strong>Flight:</strong> ${data.flight}</p>
+        </div>
+        <h3>🚚 Sejarah:</h3>
+      `;
+
+      data.events.forEach(event => {
+        html += `
+          <div class="event">
+            <strong>${event.status}</strong><br/>
+            <small>${event.location} — ${event.datetime}</small>
+          </div>
+        `;
+      });
+
+      resultDiv.innerHTML = html;
+    }
+  </script>
+</body>
+</html>
