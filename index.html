@@ -41,7 +41,7 @@
       justify-content: center;
       align-items: center;
     }
-    input, select, button {
+    input, button {
       padding: 14px;
       font-size: 16px;
     }
@@ -53,15 +53,12 @@
       outline: none;
     }
     input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.2); }
-    select, button {
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    select { background: white; min-width: 180px; }
     button {
       background: #1d4ed8;
       color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
       font-weight: 500;
     }
     button:hover { background: #1e40af; }
@@ -91,20 +88,12 @@
   <div class="container">
     <header>
       <h1>📦 Courier Tracking</h1>
-      <p>Track DHL, FedEx, UPS, Pos Malaysia & lebih</p>
+      <p>Track Pos Malaysia, DHL, FedEx, UPS & lebih</p>
     </header>
 
     <div class="search-section">
       <form class="search-form" onsubmit="track(event)">
         <input type="text" id="trackingInput" placeholder="Masukkan tracking number (contoh: ENE083992448MY)" />
-        <select id="courierSelect">
-          <option value="">Auto Detect</option>
-          <option value="dhl">DHL Express</option>
-          <option value="fedex">FedEx</option>
-          <option value="ups">UPS</option>
-          <option value="pos-malaysia">Pos Malaysia</option>
-          <option value="aramex">Aramex</option>
-        </select>
         <button type="submit">Track</button>
       </form>
     </div>
@@ -114,7 +103,7 @@
     </div>
 
     <div class="footer">
-      © 2025 Courier Tracking System | Data dari AfterShip
+      © 2025 Courier Tracking System | Data dari TrackMage
     </div>
   </div>
 
@@ -122,13 +111,11 @@
     // 🔥 GANTI DENGAN URL BACKEND ANDA
     const BACKEND_URL = 'https://courier-tracking-production.up.railway.app';
 
-    function track(e) {
+    async function track(e) {
       e.preventDefault();
       const input = document.getElementById('trackingInput');
-      const select = document.getElementById('courierSelect');
       const resultDiv = document.getElementById('result');
       const trackingNumber = input.value.trim();
-      const selectedCourier = select.value;
 
       if (!trackingNumber) {
         resultDiv.innerHTML = '<div class="error">Sila masukkan tracking number.</div>';
@@ -137,74 +124,43 @@
 
       resultDiv.innerHTML = '<div class="info-box">🔍 Sedang mencari...</div>';
 
-      // Gunakan courier pilihan jika ada
-      const endpoint = selectedCourier 
-        ? `/api/track/${selectedCourier}/${trackingNumber}` 
-        : `/api/track/${trackingNumber}`;
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/track/${encodeURIComponent(trackingNumber)}`);
+        const data = await response.json();
 
-      fetch(BACKEND_URL + endpoint)
-        .then(res => res.json())
-        .then(data => {
-          if (data.error) {
-            resultDiv.innerHTML = `<div class="error">❌ ${data.error}</div>`;
-            return;
-          }
+        if (data.error) {
+          resultDiv.innerHTML = `<div class="error">❌ ${data.error}</div>`;
+          return;
+        }
 
-          let html = `
-            <div class="info-box">
-              <strong>📦 Tracking:</strong> ${data.tracking_number}<br/>
-              <strong>🚚 Courier:</strong> ${formatCourier(data.courier)}<br/>
-              <strong>📍 Asal:</strong> ${data.origin} | <strong>Tujuan:</strong> ${data.destination}<br/>
-              <strong>📊 Status:</strong> ${formatStatus(data.status)}
-            </div>
-            <h3>🚚 Sejarah Penghantaran</h3>
-          `;
+        let html = `
+          <div class="info-box">
+            <strong>📦 Tracking:</strong> ${data.tracking_number}<br/>
+            <strong>🚚 Courier:</strong> ${data.courier}<br/>
+            <strong>📍 Asal:</strong> ${data.origin} | <strong>Tujuan:</strong> ${data.destination}<br/>
+            <strong>📊 Status:</strong> ${data.status}
+          </div>
+          <h3>🚚 Sejarah Penghantaran</h3>
+        `;
 
-          if (data.events && data.events.length > 0) {
-            data.events.forEach(e => {
-              html += `
-                <div class="event-item">
-                  <div class="event-status">${formatStatus(e.status)}</div>
-                  <div class="event-location">${e.location}</div>
-                  <div class="event-date">${e.datetime}</div>
-                </div>
-              `;
-            });
-          } else {
-            html += '<div class="error">Tiada sejarah penghantaran.</div>';
-          }
+        if (data.events && data.events.length > 0) {
+          data.events.forEach(e => {
+            html += `
+              <div class="event-item">
+                <div class="event-status">${e.status}</div>
+                <div class="event-location">${e.location}</div>
+                <div class="event-date">${e.datetime}</div>
+              </div>
+            `;
+          });
+        } else {
+          html += '<div class="error">Tiada sejarah penghantaran.</div>';
+        }
 
-          resultDiv.innerHTML = html;
-        })
-        .catch(err => {
-          resultDiv.innerHTML = `<div class="error">📡 Gagal sambung: ${err.message}</div>`;
-        });
-    }
-
-    function formatCourier(slug) {
-      const map = {
-        'dhl': 'DHL Express',
-        'fedex': 'FedEx',
-        'ups': 'UPS',
-        'pos-malaysia': 'Pos Malaysia',
-        'aramex': 'Aramex',
-        'usps': 'USPS',
-        'china-post': 'China Post'
-      };
-      return map[slug] || slug.split('-').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
-    }
-
-    function formatStatus(tag) {
-      const map = {
-        'Pending': 'Menunggu',
-        'InfoReceived': 'Maklumat Diterima',
-        'InTransit': 'Dalam Penghantaran',
-        'OutForDelivery': 'Sedang Dihantar',
-        'Delivered': 'Berjaya Dihantar',
-        'Exception': 'Isu Penghantaran',
-        'Expired': 'Tammat Tempoh'
-      };
-      return map[tag] || tag;
+        resultDiv.innerHTML = html;
+      } catch (err) {
+        resultDiv.innerHTML = `<div class="error">📡 Gagal sambung: ${err.message}</div>`;
+      }
     }
   </script>
 </body>

@@ -4,9 +4,6 @@ const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static('public'));
-app.use(express.json());
-
 // CORS
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -15,34 +12,14 @@ app.use((req, res, next) => {
   next();
 });
 
-const AFTERSHIP_API_KEY = process.env.AFTERSHIP_API_KEY;
+app.use(express.static('public'));
+app.use(express.json());
 
-// Detect courier dari tracking number
-function detectCourier(trackingNumber) {
-  trackingNumber = trackingNumber.toUpperCase().trim();
+// Dapatkan API key dari Railway
+const TRACKMAGE_API_KEY = process.env.TRACKMAGE_API_KEY;
 
-  // Pos Malaysia
-  if (/^EC[\d]{9}MY$/.test(trackingNumber)) return 'pos-malaysia';
-  if (/^RE[\d]{9}MY$/.test(trackingNumber)) return 'pos-malaysia';
-  if (/^RR[\d]{9}MY$/.test(trackingNumber)) return 'pos-malaysia';
-  if (/^LX[\d]{9}MY$/.test(trackingNumber)) return 'pos-malaysia';
-  if (/^ENE[\d]{9}MY$/.test(trackingNumber)) return 'pos-malaysia'; // ✅ ENE083992448MY
-
-  // DHL
-  if (/^JJD[\d]{11}$/.test(trackingNumber)) return 'dhl';
-  if (/^ENA?[\d]{9}(HK|MO|SG|MY)$/.test(trackingNumber)) return 'dhl';
-
-  // UPS
-  if (/^1Z[\dA-Z]{16}$/.test(trackingNumber)) return 'ups';
-  if (/^[\d]{12}$/.test(trackingNumber)) return 'ups';
-
-  // FedEx
-  if (/^[\d]{12}$/.test(trackingNumber)) return 'fedex'; // boleh clash, guna last
-
-  // USPS
-  if (/^92[\d]{9}US$/.test(trackingNumber)) return 'usps';
-
-  return null;
+if (!TRACKMAGE_API_KEY) {
+  console.warn('⚠️ TRACKMAGE_API_KEY tidak ditemui!');
 }
 
 app.get('/api/track/:tracking', async (req, res) => {
@@ -52,20 +29,15 @@ app.get('/api/track/:tracking', async (req, res) => {
     return res.status(400).json({ error: 'Tracking number diperlukan' });
   }
 
-  if (!AFTERSHIP_API_KEY) {
+  if (!TRACKMAGE_API_KEY) {
     return res.status(500).json({ error: 'API key tidak disediakan' });
   }
 
-  const detectedCourier = detectCourier(trackingNumber);
-
   try {
-    const response = await axios.get('https://api.aftership.com/v4/trackings', {
-      params: {
-        tracking_number: trackingNumber,
-        ...(detectedCourier && { slug: detectedCourier })
-      },
+    const response = await axios.get('https://api.trackmage.com/v1/track', {
+      params: { trackingNumber },
       headers: {
-        'aftership-api-key': AFTERSHIP_API_KEY,
+        'x-api-key': TRACKMAGE_API_KEY,
         'Content-Type': 'application/json'
       },
       timeout: 10000
@@ -73,31 +45,31 @@ app.get('/api/track/:tracking', async (req, res) => {
 
     const data = response.data;
 
-    if (data.meta.code === 200 && data.data.trackings.length > 0) {
-      const t = data.data.trackings[0];
+    if (data.success && data.data?.length > 0) {
+      const t = data.data[0];
       return res.json({
-        tracking_number: t.tracking_number,
-        courier: t.slug,
-        origin: t.origin?.country_iso3 || 'N/A',
-        destination: t.destination?.country_iso3 || 'N/A',
-        status: t.tag,
+        tracking_number: t.trackingNumber,
+        courier: t.courierName || t.courier,
+        origin: t.origin?.country || 'N/A',
+        destination: t.destination?.country || 'N/A',
+        status: t.status,
         events: (t.checkpoints || []).map(cp => ({
           status: cp.tag,
-          location: [cp.location, cp.country_iso3].filter(Boolean).join(', '),
-          datetime: new Date(cp.checkpoint_time).toLocaleString()
+          location: [cp.location, cp.country].filter(Boolean).join(', '),
+          datetime: new Date(cp.time).toLocaleString()
         })).reverse()
       });
     } else {
       return res.json({ error: 'Tracking number tidak ditemui' });
     }
   } catch (err) {
-    console.error('API Error:', err.response?.data || err.message);
+    console.error('TrackMage Error:', err.response?.data || err.message);
     if (err.response?.status === 401) {
       return res.status(500).json({ error: '🔐 API key tidak sah' });
     }
     return res.status(500).json({
-      error: 'Gagal panggil AfterShip',
-      details: err.response?.data?.meta?.message || err.message
+      error: 'Gagal panggil TrackMage',
+      details: err.response?.data?.message || err.message
     });
   }
 });
