@@ -12,10 +12,12 @@
     header { background: #2563eb; color: white; padding: 30px; text-align: center; }
     header h1 { font-size: 28px; font-weight: 700; }
     header p { font-size: 16px; opacity: 0.9; }
-    .search-section { padding: 30px; background: #f1f5f9; text-align: center; }
-    input, button { padding: 14px; font-size: 16px; }
+    .search-section { padding: 30px; background: #f1f5f9; }
+    .search-form { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center; }
+    input, select, button { padding: 14px; font-size: 16px; }
     input { width: 70%; max-width: 400px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; }
     input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.2); }
+    select { border: none; border-radius: 8px; min-width: 180px; }
     button { background: #1d4ed8; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; }
     button:hover { background: #1e40af; }
     .result { padding: 30px; }
@@ -36,8 +38,18 @@
     </header>
 
     <div class="search-section">
-      <input type="text" id="trackingInput" placeholder="Masukkan tracking number" />
-      <button onclick="track()">Track</button>
+      <div class="search-form">
+        <input type="text" id="trackingInput" placeholder="Masukkan tracking number" />
+        <select id="courierSelect">
+          <option value="">Auto Detect</option>
+          <option value="dhl">DHL Express</option>
+          <option value="fedex">FedEx</option>
+          <option value="ups">UPS</option>
+          <option value="malaysia-post">Pos Malaysia</option>
+          <option value="usps">USPS</option>
+        </select>
+        <button onclick="track()">Track</button>
+      </div>
     </div>
 
     <div id="result" class="result">
@@ -52,10 +64,12 @@
   <script>
     const BACKEND_URL = 'https://courier-tracking-production.up.railway.app';
 
-    async function track() {
+    function track() {
       const input = document.getElementById('trackingInput');
+      const select = document.getElementById('courierSelect');
       const resultDiv = document.getElementById('result');
       const trackingNumber = input.value.trim();
+      const selectedCourier = select.value;
 
       if (!trackingNumber) {
         resultDiv.innerHTML = '<div class="error">Sila masukkan tracking number.</div>';
@@ -64,46 +78,48 @@
 
       resultDiv.innerHTML = '<div class="info-box">🔍 Sedang mencari...</div>';
 
-      try {
-        const response = await fetch(`${BACKEND_URL}/api/track/${encodeURIComponent(trackingNumber)}`);
-        const data = await response.json();
+      const endpoint = selectedCourier 
+        ? `/api/track/${selectedCourier}/${trackingNumber}` 
+        : `/api/track/${trackingNumber}`;
 
-        if (data.error) {
-          resultDiv.innerHTML = `<div class="error">❌ ${data.error}</div>`;
-          return;
-        }
+      fetch(BACKEND_URL + endpoint)
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            resultDiv.innerHTML = `<div class="error">❌ ${data.error}</div>`;
+            return;
+          }
 
-        let html = `
-          <div class="info-box">
-            <div><strong>📦 Tracking Number:</strong> ${data.tracking_number}</div>
-            <div><strong>🚚 Courier:</strong> ${data.courier} (${data.slug})</div>
-            <div><strong>📍 Asal:</strong> ${data.origin} | <strong>Tujuan:</strong> ${data.destination}</div>
-            <div><strong>📊 Status:</strong> ${data.status}</div>
-            <div><strong>📦 Order ID:</strong> ${data.order_id}</div>
-            <div><strong>📌 Title:</strong> ${data.title}</div>
-            <div><strong>📍 Checkpoints:</strong> ${data.checkpoints_count}</div>
-          </div>
-          <h3>🚚 Sejarah Penghantaran</h3>
-        `;
+          let html = `
+            <div class="info-box">
+              <div><strong>📦 Tracking Number:</strong> ${data.tracking_number}</div>
+              <div><strong>🚚 Courier:</strong> ${data.courier_name} (${data.courier_slug})</div>
+              <div><strong>📊 Status:</strong> ${data.status}</div>
+              <div><strong>📦 Title:</strong> ${data.title}</div>
+              <div><strong>📍 Checkpoints:</strong> ${data.checkpoints_count}</div>
+            </div>
+            <h3>🚚 Sejarah Penghantaran</h3>
+          `;
 
-        if (data.events && data.events.length > 0) {
-          data.events.forEach(e => {
-            html += `
-              <div class="event-item">
-                <div class="event-status">${e.status}</div>
-                <div class="event-location">${e.location}</div>
-                <div class="event-date">${e.datetime} (${e.timezone})</div>
-              </div>
-            `;
-          });
-        } else {
-          html += '<div class="error">Tiada sejarah penghantaran.</div>';
-        }
+          if (data.events && data.events.length > 0) {
+            data.events.forEach(e => {
+              html += `
+                <div class="event-item">
+                  <div class="event-status">${e.status}</div>
+                  <div class="event-location">${e.location}</div>
+                  <div class="event-date">${e.datetime} (${e.timezone})</div>
+                </div>
+              `;
+            });
+          } else {
+            html += '<div class="error">Tiada sejarah penghantaran.</div>';
+          }
 
-        resultDiv.innerHTML = html;
-      } catch (err) {
-        resultDiv.innerHTML = `<div class="error">📡 Gagal sambung: ${err.message}</div>`;
-      }
+          resultDiv.innerHTML = html;
+        })
+        .catch(err => {
+          resultDiv.innerHTML = `<div class="error">📡 Gagal sambung: ${err.message}</div>`;
+        });
     }
   </script>
 </body>
